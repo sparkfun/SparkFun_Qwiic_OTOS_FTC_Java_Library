@@ -462,7 +462,7 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
      */
     public int getImuCalibrationProgress() {
         // Read the IMU calibration register
-        return deviceClient.read8(REG_IMU_CALIB);
+        return deviceClient.read8(REG_IMU_CALIB) & 0xFF;
     }
 
     /**
