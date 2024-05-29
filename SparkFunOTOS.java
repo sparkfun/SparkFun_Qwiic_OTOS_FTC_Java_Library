@@ -318,6 +318,10 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
         return "SparkFun Qwiic Optical Tracking Odometry Sensor";
     }
 
+    /**
+     * Begins the Qwiic OTOS and verifies it is connected
+     * @return True if successful, false otherwise
+     */
     public boolean begin() {
         // Just check if the device is connected, no other setup is needed
         return isConnected();
