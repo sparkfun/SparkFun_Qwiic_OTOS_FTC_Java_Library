@@ -42,10 +42,27 @@ public class SensorSparkFunOTOS extends LinearOpMode {
             // heading angle
             SparkFunOTOS.Pose2D pos = myOtos.getPosition();
 
-            // Send the position back to the driver station telemetry
-            telemetry.addData("X (Inches)", pos.x);
-            telemetry.addData("Y (Inches)", pos.y);
-            telemetry.addData("Heading (Degrees)", pos.h);
+            // Reset the tracking if the user requests it
+            if (gamepad1.y) {
+                myOtos.resetTracking();
+            }
+
+            // Re-calibrate the IMU if the user requests it
+            if (gamepad1.x) {
+                myOtos.calibrateImu();
+            }
+
+            // Inform user of available controls
+            telemetry.addLine("Press Y (triangle) on Gamepad to reset tracking");
+            telemetry.addLine("Press X (square) on Gamepad to calibrate the IMU");
+            telemetry.addLine();
+
+            // Log the position to the telemetry
+            telemetry.addData("X coordinate", pos.x);
+            telemetry.addData("Y coordinate", pos.y);
+            telemetry.addData("Heading angle", pos.h);
+
+            // Update the telemetry on the driver station
             telemetry.update();
         }
     }
@@ -75,7 +92,7 @@ public class SensorSparkFunOTOS extends LinearOpMode {
         // clockwise (negative rotation) from the robot's orientation, the offset
         // would be {-5, 10, -90}. These can be any value, even the angle can be
         // tweaked slightly to compensate for imperfect mounting (eg. 1.3 degrees).
-        SparkFunOTOS.Pose2D offset = new SparkFunOTOS.Pose2D(-5, 10, -90);
+        SparkFunOTOS.Pose2D offset = new SparkFunOTOS.Pose2D(0, 0, 0);
         myOtos.setOffset(offset);
 
         // Here we can set the linear and angular scalars, which can compensate for
@@ -108,22 +125,6 @@ public class SensorSparkFunOTOS extends LinearOpMode {
         // it will take 255 samples and wait until done; each sample takes about
         // 2.4ms, so about 612ms total
         myOtos.calibrateImu();
-
-        // Alternatively, you can specify the number of samples and whether to wait
-        // until it's done. If you don't want to wait, you can asynchronously check
-        // how many samples remain with the code below. Once zero samples remain,
-        // the calibration is done!
-        //  myOtos.calibrateImu(255, false);
-        //  boolean done = false;
-        //  while(!done)
-        //  {
-        //      // Check how many samples remain
-        //      int samplesRemaining = myOtos.getImuCalibrationProgress();
-
-        //      // If 0 samples remain, the calibration is done
-        //      if(samplesRemaining == 0)
-        //          done = true;
-        //  }
 
         // Reset the tracking algorithm - this resets the position to the origin,
         // but can also be used to recover from some rare tracking errors
