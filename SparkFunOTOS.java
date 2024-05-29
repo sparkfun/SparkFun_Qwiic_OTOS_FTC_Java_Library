@@ -5,6 +5,7 @@
 */
 package org.firstinspires.ftc.teamcode;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import com.qualcomm.robotcore.hardware.I2cAddr;
@@ -13,12 +14,19 @@ import com.qualcomm.robotcore.hardware.I2cDeviceSynchSimple;
 import com.qualcomm.robotcore.hardware.configuration.annotations.DeviceProperties;
 import com.qualcomm.robotcore.hardware.configuration.annotations.I2cDeviceType;
 
-/*******************************************************************************
-    sfeQwiicOtos.java - Java driver implementation for the SparkFun Qwiic Optical
-    Tracking Odometry Sensor (OTOS).
-*******************************************************************************/
+/**
+ * {@link SparkFunOTOS} is the Java driver for the SparkFun Qwiic Optical Tracking Odometry Sensor
+ * (OTOS). This is a port of the Arduino library.
+ *
+ * @see <a href="https://www.sparkfun.com/products/24904">SparkFun OTOS Product Page</a>
+ * @see <a href="https://github.com/sparkfun/SparkFun_Qwiic_OTOS_Arduino_Library/">Arduino Library</a>
+ */
 @I2cDeviceType
-@DeviceProperties(name = "SparkFunOTOS", xmlTag = "SparkFunOTOS")
+@DeviceProperties(
+        name = "SparkFun OTOS",
+        xmlTag = "SparkFunOTOS",
+        description = "SparkFun Qwiic Optical Tracking Odometry Sensor"
+)
 public class SparkFunOTOS extends I2cDeviceSynchDevice {
     // Default I2C addresses of the Qwiic OTOS
     public static final byte DEFAULT_ADDRESS = 0x17;
@@ -127,6 +135,9 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
     protected static final double RPSS_TO_INT16 = 32768.0 / (Math.PI * 1000.0);
     protected static final double INT16_TO_RPSS = 1.0 / RPSS_TO_INT16;
 
+    // 2D pose structure, including x and y coordinates and heading angle.
+    // Although pose is traditionally used for position and orientation, this
+    // structure is also used for velocity and accleration by the OTOS driver
     public static class Pose2D {
         public double x;
         public double y;
@@ -143,20 +154,15 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
             this.y = y;
             this.h = h;
         }
+
+        public void set(Pose2D pose) {
+            this.x = pose.x;
+            this.y = pose.y;
+            this.h = pose.h;
+        }
     }
 
-    // Enumerations for linear units used by the OTOS driver
-    public static enum LinearUnit {
-        METERS,
-        INCHES
-    }
-
-    // Enumerations for angular units used by the OTOS driver
-    public static enum AngularUnit {
-        RADIANS,
-        DEGREES
-    }
-
+    // Version register structure
     public static class Version {
         public byte minor;
         public byte major;
@@ -179,6 +185,7 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
         }
     }
 
+    // Signal process config register structure
     public static class SignalProcessConfig {
         public boolean enLut;
         public boolean enAcc;
@@ -205,6 +212,7 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
         }
     }
 
+    // Self-test config register structure
     public static class SelfTestConfig {
         public boolean start;
         public boolean inProgress;
@@ -231,6 +239,7 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
         }
     }
 
+    // Status register structure
     public static class Status {
         public boolean warnTiltAngle;
         public boolean warnOpticalTracking;
@@ -257,6 +266,18 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
         }
     }
 
+    // Enumerations for linear units used by the OTOS driver
+    public enum LinearUnit {
+        METERS,
+        INCHES
+    }
+
+    // Enumerations for angular units used by the OTOS driver
+    public enum AngularUnit {
+        RADIANS,
+        DEGREES
+    }
+
     protected LinearUnit _linearUnit;
     protected AngularUnit _angularUnit;
     protected double _meterToUnit;
@@ -264,8 +285,10 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
 
     public SparkFunOTOS(I2cDeviceSynchSimple i2cDeviceSynchSimple, boolean deviceClientIsOwned)
     {
+        // Initialize the base class
         super(i2cDeviceSynchSimple, deviceClientIsOwned);
 
+        // Set the I2C address to the default
         deviceClient.setI2cAddress(I2cAddr.create7bit(DEFAULT_ADDRESS));
     }
 
@@ -300,6 +323,10 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
         return isConnected();
     }
 
+    /**
+     * Checks if the OTOS is connected to the I2C bus
+     * @return True if the OTOS is connected, false otherwise
+     */
     public boolean isConnected() {
         // Read the product ID
         byte prodId = deviceClient.read8(REG_PRODUCT_ID);
@@ -312,23 +339,30 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
         return true;
     }
 
+    /**
+     * Gets the hardware and firmware version of the OTOS
+     * @param hwVersion Hardware version number
+     * @param fwVersion Firmware version number
+     */
     public void getVersionInfo(Version hwVersion, Version fwVersion) {
         // Read hardware and firmware version registers
-        byte[] rawData = new byte[2];
-        int readBytes;
-        rawData = deviceClient.read(REG_HW_VERSION, 2);
-        
+        byte[] rawData = deviceClient.read(REG_HW_VERSION, 2);
+
         // Store the version info
         hwVersion.set(rawData[0]);
         fwVersion.set(rawData[1]);
     }
 
+    /**
+     * Performs a self-test on the OTOS
+     * @return True if the self-test passed, false otherwise
+     */
     public boolean selfTest() {
         // Write the self-test register to start the test
         SelfTestConfig selfTest = new SelfTestConfig();
         selfTest.set((byte) 1);
         deviceClient.write8(REG_SELF_TEST, selfTest.get());
-        
+
         // Loop until self-test is done, should only take ~20ms as of firmware v1.0
         for (int i = 0; i < 10; i++) {
             // Give a short delay between reads
@@ -352,14 +386,33 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
         return selfTest.pass;
     }
 
+    /**
+     * Calibrates the IMU on the OTOS, which removes the accelerometer and
+     * gyroscope offsets. This will do the full 255 samples and wait until
+     * the calibration is done, which takes about 612ms as of firmware v1.0
+     * @return True if the calibration was successful, false otherwise
+     */
     public boolean calibrateImu() {
         return calibrateImu(255, true);
     }
 
+    /**
+     * Calibrates the IMU on the OTOS, which removes the accelerometer and
+     * gyroscope offsets
+     * @param numSamples Number of samples to take for calibration. Each sample
+     * takes about 2.4ms, so fewer samples can be taken for faster calibration
+     * @param waitUntilDone Whether to wait until the calibration is complete.
+     * Set false to calibrate asynchronously, see getImuCalibrationProgress()
+     * @return True if the calibration was successful, false otherwise
+     */
     public boolean calibrateImu(int numSamples, boolean waitUntilDone) {
+        // Check if the number of samples is out of bounds
+        if (numSamples < 1 || numSamples > 255)
+            return false;
+
         // Write the number of samples to the device
         deviceClient.write8(REG_IMU_CALIB, numSamples);
-        
+
         // Wait 1 sample period (2.4ms) to ensure the register updates
         try {
             Thread.sleep(3);
@@ -398,15 +451,28 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
         return false;
     }
 
+    /**
+     * Gets the progress of the IMU calibration. Used for asynchronous
+     * calibration with calibrateImu()
+     * @return Number of samples remaining for calibration
+     */
     public int getImuCalibrationProgress() {
         // Read the IMU calibration register
         return deviceClient.read8(REG_IMU_CALIB);
     }
 
+    /**
+     * Gets the linear unit used by all methods using a pose
+     * @return Linear unit
+     */
     public LinearUnit getLinearUnit() {
         return _linearUnit;
     }
 
+    /**
+     * Sets the linear unit used by all methods using a pose
+     * @param unit Linear unit
+     */
     public void setLinearUnit(LinearUnit unit) {
         // Check if this unit is already set
         if (unit == _linearUnit)
@@ -419,10 +485,18 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
         _meterToUnit = (unit == LinearUnit.METERS) ? 1.0 : METER_TO_INCH;
     }
 
+    /**
+     * Gets the angular unit used by all methods using a pose
+     * @return Angular unit
+     */
     public AngularUnit getAngularUnit() {
         return _angularUnit;
     }
 
+    /**
+     * Sets the angular unit used by all methods using a pose
+     * @param unit Angular unit
+     */
     public void setAngularUnit(AngularUnit unit) {
         // Check if this unit is already set
         if (unit == _angularUnit)
@@ -435,6 +509,10 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
         _radToUnit = (unit == AngularUnit.RADIANS) ? 1.0 : RADIAN_TO_DEGREE;
     }
 
+    /**
+     * Gets the linear scalar used by the OTOS
+     * @return Linear scalar
+     */
     public double getLinearScalar() {
         // Read the linear scalar from the device
         byte rawScalar = deviceClient.read8(REG_SCALAR_LINEAR);
@@ -443,6 +521,12 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
         return (rawScalar * 0.001) + 1.0;
     }
 
+    /**
+     * Sets the linear scalar used by the OTOS. Can be used to
+     * compensate for scaling issues with the sensor measurements
+     * @param scalar Linear scalar, must be between 0.872 and 1.127
+     * @return True if the scalar was set successfully, false otherwise
+     */
     public boolean setLinearScalar(double scalar) {
         // Check if the scalar is out of bounds
         if (scalar < MIN_SCALAR || scalar > MAX_SCALAR)
@@ -458,6 +542,10 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
         return true;
     }
 
+    /**
+     * Gets the angular scalar used by the OTOS
+     * @return Angular scalar
+     */
     public double getAngularScalar() {
         // Read the angular scalar from the device
         byte rawScalar = deviceClient.read8(REG_SCALAR_ANGULAR);
@@ -466,6 +554,12 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
         return (rawScalar * 0.001) + 1.0;
     }
 
+    /**
+     * Sets the angular scalar used by the OTOS. Can be used to
+     * compensate for scaling issues with the sensor measurements
+     * @param scalar Angular scalar, must be between 0.872 and 1.127
+     * @return True if the scalar was set successfully, false otherwise
+     */
     public boolean setAngularScalar(double scalar) {
         // Check if the scalar is out of bounds
         if (scalar < MIN_SCALAR || scalar > MAX_SCALAR)
@@ -481,113 +575,196 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
         return true;
     }
 
+    /**
+     * Resets the tracking algorithm, which resets the position to the
+     * origin, but can also be used to recover from some rare tracking errors
+     */
     public void resetTracking() {
         // Set tracking reset bit
         deviceClient.write8(REG_RESET, 0x01);
     }
 
+    /**
+     * Gets the signal processing configuration from the OTOS
+     * @return Signal processing configuration
+     */
     public SignalProcessConfig getSignalProcessConfig() {
         // Read the signal process register
-        byte rawData = deviceClient.read8(REG_SIGNAL_PROCESS);
-        return new SignalProcessConfig(rawData);
+        return new SignalProcessConfig(deviceClient.read8(REG_SIGNAL_PROCESS));
     }
 
+    /**
+     * Sets the signal processing configuration on the OTOS. This is
+     * primarily useful for creating and testing a new lookup table calibration
+     * @param config Signal processing configuration
+     */
     public void setSignalProcessConfig(SignalProcessConfig config) {
         // Write the signal process register
         deviceClient.write8(REG_SIGNAL_PROCESS, config.get());
     }
 
+    /**
+     * Gets the status register from the OTOS, which includes warnings
+     * and errors reported by the sensor
+     * @return Status register value
+     */
     public Status getStatus() {
-        byte rawData = deviceClient.read8(REG_STATUS);
-        return new Status(rawData);
+        return new Status(deviceClient.read8(REG_STATUS));
     }
 
+    /**
+     * Gets the offset of the OTOS
+     * @return Offset of the sensor relative to the center of the robot
+     */
     public Pose2D getOffset() {
         return readPoseRegs(REG_OFF_XL, INT16_TO_METER, INT16_TO_RAD);
     }
 
+    /**
+     * Sets the offset of the OTOS. This is useful if your sensor is
+     * mounted off-center from a robot. Rather than returning the position of
+     * the sensor, the OTOS will return the position of the robot
+     * @param pose Offset of the sensor relative to the center of the robot
+     */
     public void setOffset(Pose2D pose) {
         writePoseRegs(REG_OFF_XL, pose, METER_TO_INT16, RAD_TO_INT16);
     }
 
+    /**
+     * Gets the position measured by the OTOS
+     * @return Position measured by the OTOS
+     */
     public Pose2D getPosition() {
         return readPoseRegs(REG_POS_XL, INT16_TO_METER, INT16_TO_RAD);
     }
 
+    /**
+     * Sets the position measured by the OTOS. This is useful if your
+     * robot does not start at the origin, or you have another source of
+     * location information (eg. vision odometry); the OTOS will continue
+     * tracking from this position
+     * @param pose New position for the OTOS to track from
+     */
     public void setPosition(Pose2D pose) {
         writePoseRegs(REG_POS_XL, pose, METER_TO_INT16, RAD_TO_INT16);
     }
 
+    /**
+     * Gets the velocity measured by the OTOS
+     * @return Velocity measured by the OTOS
+     */
     public Pose2D getVelocity() {
         return readPoseRegs(REG_VEL_XL, INT16_TO_MPS, INT16_TO_RPS);
     }
 
+    /**
+     * Gets the acceleration measured by the OTOS
+     * @return Acceleration measured by the OTOS
+     */
     public Pose2D getAcceleration() {
         return readPoseRegs(REG_ACC_XL, INT16_TO_MPSS, INT16_TO_RPSS);
     }
 
+    /**
+     * Gets the standard deviation of the measured position
+     * @return Standard deviation of the position measured by the OTOS
+     * @apiNote These values are just the square root of the diagonal elements
+     * of the covariance matrices of the Kalman filters used in the firmware, so
+     * they are just statistical quantities and do not represent actual error!
+     */
     public Pose2D getPositionStdDev() {
         return readPoseRegs(REG_POS_STD_XL, INT16_TO_METER, INT16_TO_RAD);
     }
 
+    /**
+     * Gets the standard deviation of the measured velocity
+     * @return Standard deviation of the velocity measured by the OTOS
+     * @apiNote These values are just the square root of the diagonal elements
+     * of the covariance matrices of the Kalman filters used in the firmware, so
+     * they are just statistical quantities and do not represent actual error!
+     */
     public Pose2D getVelocityStdDev() {
         return readPoseRegs(REG_VEL_STD_XL, INT16_TO_MPS, INT16_TO_RPS);
     }
 
+    /**
+     * Gets the standard deviation of the measured acceleration
+     * @return Standard deviation of the acceleration measured by the OTOS
+     * @apiNote These values are just the square root of the diagonal elements
+     * of the covariance matrices of the Kalman filters used in the firmware, so
+     * they are just statistical quantities and do not represent actual error!
+     */
     public Pose2D getAccelerationStdDev() {
         return readPoseRegs(REG_ACC_STD_XL, INT16_TO_MPSS, INT16_TO_RPSS);
     }
 
+    /**
+     * Gets the position, velocity, and acceleration measured by the
+     * OTOS in a single burst read
+     * @param pos Position measured by the OTOS
+     * @param vel Velocity measured by the OTOS
+     * @param acc Acceleration measured by the OTOS
+     */
     public void getPosVelAcc(Pose2D pos, Pose2D vel, Pose2D acc) {
         // Read all pose registers
-        byte[] rawData = new byte[18];
-        int bytesRead;
-        rawData = deviceClient.read(REG_POS_XL, 18);
-        
+        byte[] rawData = deviceClient.read(REG_POS_XL, 18);
+
         // Convert raw data to pose units
-        pos = regsToPose(Arrays.copyOfRange(rawData, 0, 6), INT16_TO_METER, INT16_TO_RAD);
-        vel = regsToPose(Arrays.copyOfRange(rawData, 6, 12), INT16_TO_MPS, INT16_TO_RPS);
-        acc = regsToPose(Arrays.copyOfRange(rawData, 12, 18), INT16_TO_MPSS, INT16_TO_RPSS);
+        pos.set(regsToPose(Arrays.copyOfRange(rawData, 0, 6), INT16_TO_METER, INT16_TO_RAD));
+        vel.set(regsToPose(Arrays.copyOfRange(rawData, 6, 12), INT16_TO_MPS, INT16_TO_RPS));
+        acc.set(regsToPose(Arrays.copyOfRange(rawData, 12, 18), INT16_TO_MPSS, INT16_TO_RPSS));
     }
 
+    /**
+     * Gets the standard deviation of the measured position, velocity,
+     * and acceleration in a single burst read
+     * @param pos Standard deviation of the position measured by the OTOS
+     * @param vel Standard deviation of the velocity measured by the OTOS
+     * @param acc Standard deviation of the acceleration measured by the OTOS
+     */
     public void getPosVelAccStdDev(Pose2D pos, Pose2D vel, Pose2D acc) {
         // Read all pose registers
-        byte[] rawData = new byte[18];
-        int bytesRead;
-        rawData = deviceClient.read(REG_POS_STD_XL, 18);
-        
+        byte[] rawData = deviceClient.read(REG_POS_STD_XL, 18);
+
         // Convert raw data to pose units
-        pos = regsToPose(Arrays.copyOfRange(rawData, 0, 6), INT16_TO_METER, INT16_TO_RAD);
-        vel = regsToPose(Arrays.copyOfRange(rawData, 6, 12), INT16_TO_MPS, INT16_TO_RPS);
-        acc = regsToPose(Arrays.copyOfRange(rawData, 12, 18), INT16_TO_MPSS, INT16_TO_RPSS);
+        pos.set(regsToPose(Arrays.copyOfRange(rawData, 0, 6), INT16_TO_METER, INT16_TO_RAD));
+        vel.set(regsToPose(Arrays.copyOfRange(rawData, 6, 12), INT16_TO_MPS, INT16_TO_RPS));
+        acc.set(regsToPose(Arrays.copyOfRange(rawData, 12, 18), INT16_TO_MPSS, INT16_TO_RPSS));
     }
 
+    /**
+     * Gets the position, velocity, acceleration, and standard deviation
+     * of each in a single burst read
+     * @param pos Position measured by the OTOS
+     * @param vel Velocity measured by the OTOS
+     * @param acc Acceleration measured by the OTOS
+     * @param posStdDev Standard deviation of the position measured by the OTOS
+     * @param velStdDev Standard deviation of the velocity measured by the OTOS
+     * @param accStdDev Standard deviation of the acceleration measured by the OTOS
+     */
     public void getPosVelAccAndStdDev(Pose2D pos, Pose2D vel, Pose2D acc,
-                                              Pose2D posStdDev, Pose2D velStdDev, Pose2D accStdDev) {
+                                      Pose2D posStdDev, Pose2D velStdDev, Pose2D accStdDev) {
         // Read all pose registers
-        byte[] rawData = new byte[36];
-        int bytesRead;
-        rawData = deviceClient.read(REG_POS_XL, 36);
-        
+        byte[] rawData = deviceClient.read(REG_POS_XL, 36);
+
         // Convert raw data to pose units
-        pos = regsToPose(Arrays.copyOfRange(rawData, 0, 6), INT16_TO_METER, INT16_TO_RAD);
-        vel = regsToPose(Arrays.copyOfRange(rawData, 6, 12), INT16_TO_MPS, INT16_TO_RPS);
-        acc = regsToPose(Arrays.copyOfRange(rawData, 12, 18), INT16_TO_MPSS, INT16_TO_RPSS);
-        posStdDev = regsToPose(Arrays.copyOfRange(rawData, 18, 24), INT16_TO_METER, INT16_TO_RAD);
-        velStdDev = regsToPose(Arrays.copyOfRange(rawData, 24, 30), INT16_TO_MPS, INT16_TO_RPS);
-        accStdDev = regsToPose(Arrays.copyOfRange(rawData, 30, 36), INT16_TO_MPSS, INT16_TO_RPSS);
+        pos.set(regsToPose(Arrays.copyOfRange(rawData, 0, 6), INT16_TO_METER, INT16_TO_RAD));
+        vel.set(regsToPose(Arrays.copyOfRange(rawData, 6, 12), INT16_TO_MPS, INT16_TO_RPS));
+        acc.set(regsToPose(Arrays.copyOfRange(rawData, 12, 18), INT16_TO_MPSS, INT16_TO_RPSS));
+        posStdDev.set(regsToPose(Arrays.copyOfRange(rawData, 18, 24), INT16_TO_METER, INT16_TO_RAD));
+        velStdDev.set(regsToPose(Arrays.copyOfRange(rawData, 24, 30), INT16_TO_MPS, INT16_TO_RPS));
+        accStdDev.set(regsToPose(Arrays.copyOfRange(rawData, 30, 36), INT16_TO_MPSS, INT16_TO_RPSS));
     }
 
+    // Function to read raw pose registers and convert to specified units
     protected Pose2D readPoseRegs(byte reg, double rawToXY, double rawToH) {
-        int bytesRead;
-        byte[] rawData = new byte[6];
-
         // Attempt to read the raw pose data
-        rawData = deviceClient.read(reg, 6);
-        
+        byte[] rawData = deviceClient.read(reg, 6);
+
         return regsToPose(rawData, rawToXY, rawToH);
     }
 
+    // Function to write raw pose registers and convert from specified units
     protected void writePoseRegs(byte reg, Pose2D pose, double xyToRaw, double hToRaw) {
         // Store raw data in a temporary buffer
         byte[] rawData = new byte[6];
@@ -597,11 +774,16 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
         deviceClient.write(reg, rawData);
     }
 
+    // Function to convert raw pose registers to a pose structure
     protected Pose2D regsToPose(byte[] rawData, double rawToXY, double rawToH) {
+        // Wrap raw data in a buffer to handle endianness and signed values
+        ByteBuffer data = ByteBuffer.wrap(rawData);
+        data.order(java.nio.ByteOrder.LITTLE_ENDIAN);
+
         // Store raw data
-        short rawX = (short) ((rawData[1] << 8) | rawData[0]);
-        short rawY = (short) ((rawData[3] << 8) | rawData[2]);
-        short rawH = (short) ((rawData[5] << 8) | rawData[4]);
+        short rawX = data.getShort(0);
+        short rawY = data.getShort(2);
+        short rawH = data.getShort(4);
 
         // Store in pose and convert to units
         Pose2D pose = new Pose2D();
@@ -612,6 +794,7 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
         return pose;
     }
 
+    // Function to convert a pose structure to raw pose registers
     protected void poseToRegs(byte[] rawData, Pose2D pose, double xyToRaw, double hToRaw) {
         // Convert pose units to raw data
         short rawX = (short) (pose.x * xyToRaw / _meterToUnit);
