@@ -3,11 +3,16 @@
 
     Copyright (c) 2024 SparkFun Electronics
 */
-package org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.robotcontroller.external.samples;
 
 import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+
+import com.qualcomm.hardware.sparkfun.SparkFunOTOS;
+
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
 /*
  * This OpMode illustrates how to use the SparkFun Qwiic Optical Tracking Odometry Sensor (OTOS)
@@ -20,7 +25,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
  * See the sensor's product page: https://www.sparkfun.com/products/24904
  */
 @TeleOp(name = "Sensor: SparkFun OTOS", group = "Sensor")
-//@Disabled
+@Disabled
 public class SensorSparkFunOTOS extends LinearOpMode {
     // Create an instance of the sensor
     SparkFunOTOS myOtos;
@@ -74,12 +79,12 @@ public class SensorSparkFunOTOS extends LinearOpMode {
         // Set the desired units for linear and angular measurements. Can be either
         // meters or inches for linear, and radians or degrees for angular. If not
         // set, the default is inches and degrees. Note that this setting is not
-        // stored in the sensor, it's part of the library, so you need to set at the
-        // start of all your programs.
-        // myOtos.setLinearUnit(SparkFunOTOS.LinearUnit.METERS);
-        myOtos.setLinearUnit(SparkFunOTOS.LinearUnit.INCHES);
-        // myOtos.setAngularUnit(SparkFunOTOS.AngularUnit.RADIANS);
-        myOtos.setAngularUnit(SparkFunOTOS.AngularUnit.DEGREES);
+        // persisted in the sensor, so you need to set at the start of all your
+        // OpModes if using the non-default value.
+        // myOtos.setLinearUnit(DistanceUnit.METER);
+        myOtos.setLinearUnit(DistanceUnit.INCH);
+        // myOtos.setAngularUnit(AnguleUnit.RADIANS);
+        myOtos.setAngularUnit(AngleUnit.DEGREES);
 
         // Assuming you've mounted your sensor to a robot and it's not centered,
         // you can specify the offset for the sensor relative to the center of the
@@ -118,7 +123,7 @@ public class SensorSparkFunOTOS extends LinearOpMode {
         // have an offset. Note that as of firmware version 1.0, the calibration
         // will be lost after a power cycle; the OTOS performs a quick calibration
         // when it powers up, but it is recommended to perform a more thorough
-        // calibration at the start of all your programs. Note that the sensor must
+        // calibration at the start of all your OpModes. Note that the sensor must
         // be completely stationary and flat during calibration! When calling
         // calibrateImu(), you can specify the number of samples to take and whether
         // to wait until the calibration is complete. If no parameters are provided,

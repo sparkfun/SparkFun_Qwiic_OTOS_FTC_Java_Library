@@ -1,18 +1,22 @@
 /*
     SPDX-License-Identifier: MIT
-    
+
     Copyright (c) 2024 SparkFun Electronics
 */
-package org.firstinspires.ftc.teamcode;
+package com.qualcomm.hardware.sparkfun;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import com.qualcomm.robotcore.hardware.I2cAddr;
+import com.qualcomm.robotcore.hardware.I2cDeviceSynch;
 import com.qualcomm.robotcore.hardware.I2cDeviceSynchDevice;
 import com.qualcomm.robotcore.hardware.I2cDeviceSynchSimple;
 import com.qualcomm.robotcore.hardware.configuration.annotations.DeviceProperties;
 import com.qualcomm.robotcore.hardware.configuration.annotations.I2cDeviceType;
+
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
 /**
  * {@link SparkFunOTOS} is the Java driver for the SparkFun Qwiic Optical Tracking Odometry Sensor
@@ -27,7 +31,7 @@ import com.qualcomm.robotcore.hardware.configuration.annotations.I2cDeviceType;
         xmlTag = "SparkFunOTOS",
         description = "SparkFun Qwiic Optical Tracking Odometry Sensor"
 )
-public class SparkFunOTOS extends I2cDeviceSynchDevice {
+public class SparkFunOTOS extends I2cDeviceSynchDevice<I2cDeviceSynch> {
     // Default I2C addresses of the Qwiic OTOS
     public static final byte DEFAULT_ADDRESS = 0x17;
     // Minimum scalar value for the linear and angular scalars
@@ -94,8 +98,6 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
     protected static final byte PRODUCT_ID = 0x5F;
 
     // Conversion factors
-    protected static final double METER_TO_INCH = 39.37;
-    protected static final double INCH_TO_METER = 1.0 / METER_TO_INCH;
     protected static final double RADIAN_TO_DEGREE = 180.0 / Math.PI;
     protected static final double DEGREE_TO_RADIAN = Math.PI / 180.0;
 
@@ -266,40 +268,27 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
         }
     }
 
-    // Enumerations for linear units used by the OTOS driver
-    public enum LinearUnit {
-        METERS,
-        INCHES
-    }
+    protected DistanceUnit _distanceUnit;
+    protected AngleUnit _angularUnit;
 
-    // Enumerations for angular units used by the OTOS driver
-    public enum AngularUnit {
-        RADIANS,
-        DEGREES
-    }
-
-    protected LinearUnit _linearUnit;
-    protected AngularUnit _angularUnit;
-    protected double _meterToUnit;
-    protected double _radToUnit;
-
-    public SparkFunOTOS(I2cDeviceSynchSimple i2cDeviceSynchSimple, boolean deviceClientIsOwned)
+    public SparkFunOTOS(I2cDeviceSynch deviceClient)
     {
         // Initialize the base class
-        super(i2cDeviceSynchSimple, deviceClientIsOwned);
+        super(deviceClient, true);
 
         // Set the I2C address to the default
         deviceClient.setI2cAddress(I2cAddr.create7bit(DEFAULT_ADDRESS));
+
+        super.registerArmingStateCallback(false);
+        this.deviceClient.engage();
     }
 
     @Override
     protected boolean doInitialize()
     {
         // Set default units to inches and degrees
-        _linearUnit = LinearUnit.INCHES;
-        _angularUnit = AngularUnit.DEGREES;
-        _meterToUnit = METER_TO_INCH;
-        _radToUnit = RADIAN_TO_DEGREE;
+        _distanceUnit = DistanceUnit.INCH;
+        _angularUnit = AngleUnit.DEGREES;
 
         // Check if the device is connected
         return isConnected();
@@ -308,8 +297,7 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
     @Override
     public Manufacturer getManufacturer()
     {
-        // TODO: Update with SparkFun once it's available
-        return Manufacturer.Other;
+        return Manufacturer.SparkFun;
     }
 
     @Override
@@ -469,31 +457,28 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
      * Gets the linear unit used by all methods using a pose
      * @return Linear unit
      */
-    public LinearUnit getLinearUnit() {
-        return _linearUnit;
+    public DistanceUnit getLinearUnit() {
+        return _distanceUnit;
     }
 
     /**
      * Sets the linear unit used by all methods using a pose
      * @param unit Linear unit
      */
-    public void setLinearUnit(LinearUnit unit) {
+    public void setLinearUnit(DistanceUnit unit) {
         // Check if this unit is already set
-        if (unit == _linearUnit)
+        if (unit == _distanceUnit)
             return;
 
         // Store new unit
-        _linearUnit = unit;
-
-        // Compute conversion factor to new units
-        _meterToUnit = (unit == LinearUnit.METERS) ? 1.0 : METER_TO_INCH;
+        _distanceUnit = unit;
     }
 
     /**
      * Gets the angular unit used by all methods using a pose
      * @return Angular unit
      */
-    public AngularUnit getAngularUnit() {
+    public AngleUnit getAngularUnit() {
         return _angularUnit;
     }
 
@@ -501,16 +486,13 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
      * Sets the angular unit used by all methods using a pose
      * @param unit Angular unit
      */
-    public void setAngularUnit(AngularUnit unit) {
+    public void setAngularUnit(AngleUnit unit) {
         // Check if this unit is already set
         if (unit == _angularUnit)
             return;
 
         // Store new unit
         _angularUnit = unit;
-
-        // Compute conversion factor to new units
-        _radToUnit = (unit == AngularUnit.RADIANS) ? 1.0 : RADIAN_TO_DEGREE;
     }
 
     /**
@@ -671,10 +653,10 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
 
     /**
      * Gets the standard deviation of the measured position
-     * @return Standard deviation of the position measured by the OTOS
-     * @apiNote These values are just the square root of the diagonal elements
+     * These values are just the square root of the diagonal elements
      * of the covariance matrices of the Kalman filters used in the firmware, so
      * they are just statistical quantities and do not represent actual error!
+     * @return Standard deviation of the position measured by the OTOS
      */
     public Pose2D getPositionStdDev() {
         return readPoseRegs(REG_POS_STD_XL, INT16_TO_METER, INT16_TO_RAD);
@@ -682,10 +664,10 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
 
     /**
      * Gets the standard deviation of the measured velocity
-     * @return Standard deviation of the velocity measured by the OTOS
-     * @apiNote These values are just the square root of the diagonal elements
+     * These values are just the square root of the diagonal elements
      * of the covariance matrices of the Kalman filters used in the firmware, so
      * they are just statistical quantities and do not represent actual error!
+     * @return Standard deviation of the velocity measured by the OTOS
      */
     public Pose2D getVelocityStdDev() {
         return readPoseRegs(REG_VEL_STD_XL, INT16_TO_MPS, INT16_TO_RPS);
@@ -693,10 +675,10 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
 
     /**
      * Gets the standard deviation of the measured acceleration
-     * @return Standard deviation of the acceleration measured by the OTOS
-     * @apiNote These values are just the square root of the diagonal elements
+     * These values are just the square root of the diagonal elements
      * of the covariance matrices of the Kalman filters used in the firmware, so
      * they are just statistical quantities and do not represent actual error!
+     * @return Standard deviation of the acceleration measured by the OTOS
      */
     public Pose2D getAccelerationStdDev() {
         return readPoseRegs(REG_ACC_STD_XL, INT16_TO_MPSS, INT16_TO_RPSS);
@@ -791,9 +773,9 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
 
         // Store in pose and convert to units
         Pose2D pose = new Pose2D();
-        pose.x = rawX * rawToXY * _meterToUnit;
-        pose.y = rawY * rawToXY * _meterToUnit;
-        pose.h = rawH * rawToH * _radToUnit;
+        pose.x = _distanceUnit.fromMeters(rawX * rawToXY);
+        pose.y = _distanceUnit.fromMeters(rawY * rawToXY);
+        pose.h = _angularUnit.fromRadians(rawH * rawToH);
 
         return pose;
     }
@@ -801,9 +783,9 @@ public class SparkFunOTOS extends I2cDeviceSynchDevice {
     // Function to convert a pose structure to raw pose registers
     protected void poseToRegs(byte[] rawData, Pose2D pose, double xyToRaw, double hToRaw) {
         // Convert pose units to raw data
-        short rawX = (short) (pose.x * xyToRaw / _meterToUnit);
-        short rawY = (short) (pose.y * xyToRaw / _meterToUnit);
-        short rawH = (short) (pose.h * hToRaw / _radToUnit);
+        short rawX = (short) _distanceUnit.toMeters(pose.x * xyToRaw);
+        short rawY = (short) _distanceUnit.toMeters(pose.y * xyToRaw);
+        short rawH = (short) _angularUnit.toRadians(pose.h * hToRaw);
 
         // Store raw data in buffer
         rawData[0] = (byte) (rawX & 0xFF);

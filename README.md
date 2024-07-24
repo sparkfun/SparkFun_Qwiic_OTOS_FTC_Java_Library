@@ -6,12 +6,12 @@
 
 [*SparkFun Optical Tracking Odometry Sensor [SEN-24904]*](https://www.sparkfun.com/products/24904)
 
-FTC Java Library for the SparkFun Optical Tracking Odometry Sensor
+FTC Java Library for the SparkFun Optical Tracking Odometry Sensor. This has been integrated into the [FTC SDK](https://github.com/FIRST-Tech-Challenge/FtcRobotController), so you can ignore this repository unless you know what you are doing!
 
 Repository Contents
 -------------------
 
-* **SparkFunOTOS.java** - Java driver for the FTC control system. This may be integrated into the SDK at a future date, but you can add this to your TeamCode folder for now!
+* **SparkFunOTOS.java** - Java driver for the FTC control system.
 * **SensorSparkFunOTOS.java** - Sample OpMode that demonstrates basic usage of the Optical Tracking Odometry Sensor.
 
 Documentation
