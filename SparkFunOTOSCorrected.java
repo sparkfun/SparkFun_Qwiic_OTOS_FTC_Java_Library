@@ -11,7 +11,7 @@ import java.util.*;
     xmlTag = "SparkFunOTOS2",
     description = "SparkFun Qwiic Optical Tracking Odometry Sensor Corrected"
 )
-class SparkFunOTOSCorrected extends SparkFunOTOS {
+public class SparkFunOTOSCorrected extends SparkFunOTOS {
     public SparkFunOTOSCorrected(I2cDeviceSynch deviceClient) {
         super(deviceClient);
     }
